@@ -5,10 +5,14 @@
   "scripts": {
     "start": "node index.js"
   },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@whiskeysockets/baileys": "latest",
     "node-fetch": "^2.6.1",
     "qrcode-terminal": "^0.12.0",
-    "pino": "^8.0.0"
+    "pino": "^8.0.0",
+    "link-preview-js": "latest"
   }
 }
