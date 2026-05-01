@@ -1,48 +1,36 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const fetch = require('node-fetch');
-const qrcode = require('qrcode-terminal');
 
 async function startFaresBot() {
     const { state, saveCreds } = await useMultiFileAuthState('session_fares');
     const sock = makeWASocket({ 
         auth: state, 
-        printQRInTerminal: false, // لغينا القديمة وهنطبعها يدوي
+        printQRInTerminal: false,
         logger: require('pino')({ level: 'silent' })
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    // الطريقة الجديدة والمضمونة لإظهار الـ QR
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
+        const { connection, qr } = update;
         if (qr) {
-            console.log("--- امسح الكود ده دلوقتي يا فارس ---");
-            qrcode.generate(qr, { small: true });
+            // المرة دي هنطبع الرابط ده في اللوجز
+            console.log("-----------------------------------------");
+            console.log("افتح الرابط ده من التاب عشان تشوف الـ QR:");
+            console.log(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`);
+            console.log("-----------------------------------------");
         }
-        if (connection === 'close') {
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) startFaresBot();
-        } else if (connection === 'open') {
-            console.log('البوت اشتغل بنجاح يا بطل! (Connected)');
-        }
+        if (connection === 'open') console.log('Connected!');
     });
 
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0];
         if (!m.message || m.key.fromMe) return;
-        const jid = m.key.remoteJid;
-        const text = m.message.conversation || m.message.extendedTextMessage?.text || "";
-
-        if (text && !jid.endsWith('@g.us')) {
-            try {
-                const res = await fetch(`https://aivv.vercel.app/gemini?query=${encodeURIComponent(text)}`);
-                const data = await res.json();
-                await sock.sendMessage(jid, { text: data.result });
-            } catch (e) {
-                console.log("Gemini Error");
-            }
-        }
+        try {
+            const res = await fetch(`https://aivv.vercel.app/gemini?query=${encodeURIComponent(m.message.conversation || "")}`);
+            const data = await res.json();
+            await sock.sendMessage(m.key.remoteJid, { text: data.result });
+        } catch (e) {}
     });
 }
-
 startFaresBot();
